@@ -1,7 +1,7 @@
 /**
  * Browser Recorder - Content Script
  * Injects into every page to capture user interactions.
- * Recording state persists across navigations via background service worker.
+ * Recording state persists across navigations via chrome.storage.session.
  */
 (function () {
   'use strict';
@@ -12,14 +12,13 @@
   let startUrl = '';
   let lastEventTime = 0;
   let hoverTimeout = null;
+  let domReady = false;
 
   // ── Selector Engine ────────────────────────────────────
 
-  /** Build the most resilient, readable selector for an element */
   function buildSelector(el) {
     if (!el || el === document || el === document.body) return null;
 
-    // Priority 1: Explicit test attributes
     if (el.getAttribute('data-testid')) {
       return `[data-testid="${escapeAttr(el.getAttribute('data-testid'))}"]`;
     }
@@ -30,12 +29,10 @@
       return `[data-cy="${escapeAttr(el.getAttribute('data-cy'))}"]`;
     }
 
-    // Priority 2: Unique ID
     if (el.id && isUnique(`#${CSS.escape(el.id)}`)) {
       return `#${CSS.escape(el.id)}`;
     }
 
-    // Priority 3: Accessibility attributes
     if (el.getAttribute('aria-label')) {
       const sel = `[aria-label="${escapeAttr(el.getAttribute('aria-label'))}"]`;
       if (isUnique(sel)) return sel;
@@ -48,27 +45,22 @@
       }
     }
 
-    // Priority 4: Name attribute on form elements
     if (el.name && ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(el.tagName)) {
       const sel = `[name="${escapeAttr(el.name)}"]`;
       if (isUnique(sel)) return sel;
     }
 
-    // Priority 5: Role + accessible name
     const role = el.getAttribute('role') || implicitRole(el);
     const accName = getAccessibleName(el);
     if (role && accName) {
-      const sel = `role=${role}[name="${escapeAttr(accName.substring(0, 80))}"]`;
-      return sel;
+      return `role=${role}[name="${escapeAttr(accName.substring(0, 80))}"]`;
     }
 
-    // Priority 6: Placeholder text
     if (el.placeholder) {
       const sel = `[placeholder="${escapeAttr(el.placeholder)}"]`;
       if (isUnique(sel)) return sel;
     }
 
-    // Priority 7: Button/Link text
     if (['BUTTON', 'A', 'SUMMARY'].includes(el.tagName)) {
       const text = (el.textContent || '').trim().substring(0, 60);
       if (text && isUnique(`${el.tagName.toLowerCase()}:has-text("${escapeAttr(text)}")`)) {
@@ -80,7 +72,6 @@
       if (text) return `button:has-text("${escapeAttr(text)}")`;
     }
 
-    // Priority 8: Label association
     if (el.id) {
       const label = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
       if (label?.textContent?.trim()) {
@@ -88,7 +79,6 @@
       }
     }
 
-    // Priority 9: Unique class combination
     const classes = Array.from(el.classList).filter(
       (c) => c && !c.match(/^[a-z]{1,3}-[a-f0-9]{5,}/) && !c.match(/^\d/)
     );
@@ -97,16 +87,11 @@
       if (isUnique(sel)) return sel;
     }
 
-    // Priority 10: nth-of-type (last resort, but still readable)
     return buildNthPath(el);
   }
 
   function isUnique(selector) {
-    try {
-      return document.querySelectorAll(selector).length === 1;
-    } catch {
-      return false;
-    }
+    try { return document.querySelectorAll(selector).length === 1; } catch { return false; }
   }
 
   function escapeAttr(val) {
@@ -114,29 +99,21 @@
   }
 
   function implicitRole(el) {
-    const map = {
-      BUTTON: 'button', A: 'link', INPUT: 'textbox',
-      TEXTAREA: 'textbox', SELECT: 'combobox', IMG: 'img',
-      NAV: 'navigation', MAIN: 'main', HEADER: 'banner',
-      FOOTER: 'contentinfo', ASIDE: 'complementary',
-      TABLE: 'table', FORM: 'form', H1: 'heading',
-      H2: 'heading', H3: 'heading', H4: 'heading',
-      H5: 'heading', H6: 'heading', LI: 'listitem',
-      UL: 'list', OL: 'list', DL: 'list',
-    };
     if (el.getAttribute('type') === 'checkbox') return 'checkbox';
     if (el.getAttribute('type') === 'radio') return 'radio';
+    const map = {
+      BUTTON:'button', A:'link', INPUT:'textbox', TEXTAREA:'textbox', SELECT:'combobox',
+      IMG:'img', NAV:'navigation', MAIN:'main', HEADER:'banner', FOOTER:'contentinfo',
+      ASIDE:'complementary', TABLE:'table', FORM:'form',
+      H1:'heading',H2:'heading',H3:'heading',H4:'heading',H5:'heading',H6:'heading',
+      LI:'listitem', UL:'list', OL:'list', DL:'list',
+    };
     return map[el.tagName] || null;
   }
 
   function getAccessibleName(el) {
-    return (
-      el.getAttribute('aria-label') ||
-      el.getAttribute('alt') ||
-      el.getAttribute('title') ||
-      (el.textContent || '').trim().substring(0, 80) ||
-      null
-    );
+    return el.getAttribute('aria-label') || el.getAttribute('alt') ||
+           el.getAttribute('title') || (el.textContent || '').trim().substring(0, 80) || null;
   }
 
   function buildNthPath(el) {
@@ -145,22 +122,12 @@
     while (current && current !== document.body && current !== document) {
       const parent = current.parentElement;
       if (!parent) break;
-      const siblings = Array.from(parent.children).filter(
-        (s) => s.tagName === current.tagName
-      );
+      const siblings = Array.from(parent.children).filter((s) => s.tagName === current.tagName);
       const idx = siblings.indexOf(current) + 1;
-      const tag = current.tagName.toLowerCase();
-      if (current.id) {
-        parts.unshift(`#${CSS.escape(current.id)}`);
-        break;
-      }
-      parts.unshift(`${tag}:nth-of-type(${idx})`);
+      if (current.id) { parts.unshift(`#${CSS.escape(current.id)}`); break; }
+      parts.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${idx})`);
       current = parent;
-
-      if (current.closest && current.id) {
-        parts.unshift(`#${CSS.escape(current.id)}`);
-        break;
-      }
+      if (current.closest && current.id) { parts.unshift(`#${CSS.escape(current.id)}`); break; }
     }
     return parts.join(' > ');
   }
@@ -178,37 +145,26 @@
 
   // ── Event Handlers ──────────────────────────────────────
 
-  function record(event) {
+  function record(ev) {
     if (!recording) return;
-    event.timestamp = Date.now() - lastEventTime;
+    ev.timestamp = Date.now() - lastEventTime;
     lastEventTime = Date.now();
-    event.url = location.href;
-    events.push(event);
-    // Send to background for persistence across navigations
-    chrome.runtime.sendMessage({ type: 'EVENT_RECORDED', event });
+    ev.url = location.href;
+    events.push(ev);
+    chrome.runtime.sendMessage({ type: 'EVENT_RECORDED', event: ev });
   }
 
   function onClick(e) {
     const el = e.target;
     if (!el || el.closest('#br-overlay')) return;
     const info = getElementInfo(el);
-    record({
-      type: 'click',
-      selector: info.selector,
-      tagName: info.tagName,
-      text: info.text,
-    });
+    record({ type: 'click', selector: info.selector, tagName: info.tagName, text: info.text });
   }
 
   function onDblClick(e) {
     const el = e.target;
     if (!el || el.closest('#br-overlay')) return;
-    const info = getElementInfo(el);
-    record({
-      type: 'dblclick',
-      selector: info.selector,
-      tagName: info.tagName,
-    });
+    record({ type: 'dblclick', selector: getElementInfo(el).selector, tagName: el.tagName });
   }
 
   function onInput(e) {
@@ -216,45 +172,22 @@
     if (!el || el.closest('#br-overlay')) return;
     if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
     const info = getElementInfo(el);
-    record({
-      type: el.tagName === 'SELECT' ? 'select' : 'input',
-      selector: info.selector,
-      value: el.value,
-      inputType: info.inputType,
-      tagName: info.tagName,
-    });
+    record({ type: el.tagName === 'SELECT' ? 'select' : 'input', selector: info.selector,
+      value: el.value, inputType: info.inputType, tagName: info.tagName });
   }
 
   function onChange(e) {
     const el = e.target;
     if (!el || el.closest('#br-overlay')) return;
-    if (el.tagName === 'INPUT' && el.type === 'checkbox') {
-      record({
-        type: 'check',
-        selector: buildSelector(el),
-        checked: el.checked,
-        tagName: el.tagName,
-      });
-    }
-    if (el.tagName === 'INPUT' && el.type === 'radio') {
-      record({
-        type: 'check',
-        selector: buildSelector(el),
-        checked: true,
-        tagName: el.tagName,
-      });
+    if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
+      record({ type: 'check', selector: buildSelector(el), checked: el.checked, tagName: el.tagName });
     }
     if (el.tagName === 'INPUT' && el.type === 'file') {
-      record({
-        type: 'upload',
-        selector: buildSelector(el),
-        files: Array.from(el.files || []).map((f) => f.name),
-      });
+      record({ type: 'upload', selector: buildSelector(el), files: Array.from(el.files || []).map(f => f.name) });
     }
   }
 
   function onKeyDown(e) {
-    // Ctrl+Shift+R / Cmd+Shift+R to toggle recording
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'R') {
       e.preventDefault();
       toggleRecording();
@@ -262,11 +195,7 @@
     }
     if (!recording) return;
     if (['Tab', 'Enter', 'Escape', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
-      record({
-        type: 'keydown',
-        key: e.key,
-        selector: buildSelector(e.target),
-      });
+      record({ type: 'keydown', key: e.key, selector: buildSelector(e.target) });
     }
   }
 
@@ -276,61 +205,49 @@
     hoverTimeout = setTimeout(() => {
       const el = e.target;
       if (!el || el.closest('#br-overlay')) return;
-      const sel = buildSelector(el);
-      const isMenuTrigger =
-        el.getAttribute('aria-haspopup') ||
-        el.getAttribute('aria-expanded') ||
-        el.closest('[data-hover]');
+      const isMenuTrigger = el.getAttribute('aria-haspopup') || el.getAttribute('aria-expanded') || el.closest('[data-hover]');
       if (!isMenuTrigger) return;
-      record({ type: 'hover', selector: sel, tagName: el.tagName });
+      record({ type: 'hover', selector: buildSelector(el), tagName: el.tagName });
     }, 300);
   }
 
   // ── Navigation Detection ────────────────────────────────
 
-  // Sync events to background before page unloads
   window.addEventListener('beforeunload', () => {
     if (!recording) return;
-    // Synchronously send all events to background
+    // Sync entire events buffer to storage (synchronous fallback via background)
+    try { chrome.runtime.sendMessage({ type: 'EVENTS_SYNC', events }); } catch (_) {}
+    // Also write directly to storage as a reliable backup
     try {
-      chrome.runtime.sendMessage({ type: 'EVENTS_SYNC', events });
+      chrome.storage.session.set({
+        br_events: events,
+        br_updatedAt: Date.now()
+      });
     } catch (_) {}
   });
 
-  // Patch pushState/replaceState for SPA navigation
   function patchHistory() {
     const origPush = history.pushState;
     const origReplace = history.replaceState;
     history.pushState = function (...args) {
       origPush.apply(this, args);
-      if (recording && location.href !== startUrl) {
-        onNavigate();
-      }
+      if (recording && location.href !== startUrl) onNavigate();
     };
     history.replaceState = function (...args) {
       origReplace.apply(this, args);
-      if (recording && location.href !== startUrl) {
-        onNavigate();
-      }
+      if (recording && location.href !== startUrl) onNavigate();
     };
   }
 
   function onNavigate() {
-    if (!recording) return;
-    if (location.href !== startUrl) {
-      startUrl = location.href;
-      record({ type: 'navigation', url: location.href, title: document.title });
-    }
+    startUrl = location.href;
+    record({ type: 'navigation', url: location.href, title: document.title });
   }
 
   // ── Recording Control ───────────────────────────────────
 
   function toggleRecording() {
-    if (recording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
+    if (recording) stopRecording(); else startRecording();
   }
 
   function startRecording() {
@@ -338,6 +255,13 @@
     startUrl = location.href;
     lastEventTime = Date.now();
     recording = true;
+    // Persist recording state to session storage
+    chrome.storage.session.set({
+      br_recording: true,
+      br_tabId: getTabId(),
+      br_events: events,
+      br_startUrl: startUrl
+    });
     record({ type: 'navigation', url: startUrl, title: document.title });
     showIndicator();
     chrome.runtime.sendMessage({ type: 'RECORDING_STARTED', url: startUrl });
@@ -346,15 +270,20 @@
   function stopRecording() {
     recording = false;
     hideIndicator();
-    const recordingData = {
-      title: document.title || 'Untitled Recording',
-      startUrl,
-      recordedAt: new Date().toISOString(),
-      steps: events,
-    };
-    chrome.runtime.sendMessage(
-      { type: 'RECORDING_STOPPED', recording: recordingData, events }
-    );
+    // Load events from storage (includes events from previous pages)
+    chrome.storage.session.get(['br_events', 'br_startUrl'], (data) => {
+      const allEvents = data.br_events || events;
+      const fullStartUrl = data.br_startUrl || startUrl;
+      const recordingData = {
+        title: document.title || 'Untitled Recording',
+        startUrl: fullStartUrl,
+        recordedAt: new Date().toISOString(),
+        steps: allEvents,
+      };
+      chrome.runtime.sendMessage({ type: 'RECORDING_STOPPED', recording: recordingData });
+      // Clean up storage
+      chrome.storage.session.remove(['br_recording', 'br_tabId', 'br_events', 'br_startUrl', 'br_updatedAt']);
+    });
     events = [];
   }
 
@@ -362,49 +291,28 @@
 
   function showIndicator() {
     if (document.getElementById('br-overlay')) return;
+    if (!domReady || !document.body) {
+      // DOM not ready yet, retry on DOMContentLoaded
+      return;
+    }
     const overlay = document.createElement('div');
     overlay.id = 'br-overlay';
     overlay.innerHTML = `
       <style>
-        #br-overlay {
-          position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
-          display: flex; align-items: center; justify-content: center;
-          pointer-events: none; height: 0;
-        }
-        #br-overlay .br-badge {
-          background: #e74c3c; color: #fff; font: 12px/1.4 system-ui, sans-serif;
-          padding: 4px 14px; border-radius: 0 0 8px 8px;
-          display: flex; align-items: center; gap: 6px;
-          box-shadow: 0 2px 8px rgba(0,0,0,.25);
-          animation: br-pulse 1.5s ease-in-out infinite;
-        }
-        #br-overlay .br-dot {
-          width: 8px; height: 8px; border-radius: 50%;
-          background: #fff; animation: br-blink 1s step-end infinite;
-        }
-        @keyframes br-pulse {
-          0%, 100% { opacity: 1; } 50% { opacity: 0.85; }
-        }
-        @keyframes br-blink {
-          0%, 100% { opacity: 1; } 50% { opacity: 0.2; }
-        }
-        #br-highlight {
-          position: fixed; pointer-events: none; z-index: 2147483646;
-          border: 2px solid #3498db; border-radius: 3px;
-          background: rgba(52,152,219,.08); transition: all .15s ease;
-        }
+        #br-overlay{position:fixed;top:0;left:0;right:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;pointer-events:none;height:0}
+        #br-overlay .br-badge{background:#e74c3c;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:4px 14px;border-radius:0 0 8px 8px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);animation:br-pulse 1.5s ease-in-out infinite}
+        #br-overlay .br-dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:br-blink 1s step-end infinite}
+        @keyframes br-pulse{0%,100%{opacity:1}50%{opacity:.85}}
+        @keyframes br-blink{0%,100%{opacity:1}50%{opacity:.2}}
+        #br-highlight{position:fixed;pointer-events:none;z-index:2147483646;border:2px solid #3498db;border-radius:3px;background:rgba(52,152,219,.08);transition:all .15s ease}
       </style>
-      <div class="br-badge">
-        <span class="br-dot"></span> Recording — Ctrl+Shift+R to stop
-      </div>
+      <div class="br-badge"><span class="br-dot"></span> Recording — Ctrl+Shift+R to stop</div>
     `;
     document.body.appendChild(overlay);
 
-    // Element highlight on hover (only during recording)
     const highlight = document.createElement('div');
     highlight.id = 'br-highlight';
     document.body.appendChild(highlight);
-
     document.addEventListener('mousemove', highlightElement, true);
   }
 
@@ -420,8 +328,7 @@
     if (!recording) return;
     const el = e.target;
     if (!el || el.closest('#br-overlay') || el === document.body) {
-      const h = document.getElementById('br-highlight');
-      if (h) h.style.display = 'none';
+      const h = document.getElementById('br-highlight'); if (h) h.style.display = 'none';
       return;
     }
     const rect = el.getBoundingClientRect();
@@ -437,53 +344,45 @@
   // ── Cross-Page Recording Resume ─────────────────────────
 
   /**
-   * On content script init, check with background if we should be recording.
-   * This is the key fix: after navigation to a new page, the content script
-   * restores recording state from the background service worker.
+   * On content script init, check chrome.storage.session for active recording.
+   * This survives both page navigations AND Service Worker restarts.
    */
   function initRecordingState() {
-    chrome.runtime.sendMessage({ type: 'GET_RECORDING_STATUS' }, (response) => {
-      if (chrome.runtime.lastError) return;
-      if (response && response.recording) {
-        // Resume recording on this new page
-        recording = true;
-        startUrl = location.href;
-        lastEventTime = Date.now();
-        events = [];
-        record({ type: 'navigation', url: location.href, title: document.title });
-        showIndicator();
-      }
+    chrome.storage.session.get(['br_recording', 'br_events', 'br_startUrl'], (data) => {
+      if (!data.br_recording) return;
+
+      recording = true;
+      events = data.br_events || [];
+      startUrl = data.br_startUrl || location.href;
+      lastEventTime = Date.now();
+
+      // Record navigation to the new page
+      record({ type: 'navigation', url: location.href, title: document.title });
+
+      // Show the overlay (wait for DOM if needed)
+      showIndicator();
     });
+  }
+
+  function getTabId() {
+    // content scripts can't access chrome.tabs, but we store what we can
+    return null;
   }
 
   // ── Message Handling ────────────────────────────────────
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     switch (msg.action) {
-      case 'start':
-        startRecording();
-        sendResponse({ status: 'recording' });
-        break;
-      case 'stop':
-        stopRecording();
-        sendResponse({ status: 'stopped' });
-        break;
-      case 'status':
-        sendResponse({ recording, eventCount: events.length });
-        break;
+      case 'start': startRecording(); sendResponse({ status: 'recording' }); break;
+      case 'stop': stopRecording(); sendResponse({ status: 'stopped' }); break;
+      case 'status': sendResponse({ recording, eventCount: events.length }); break;
       case 'addAssertion':
-        record({
-          type: 'assert',
-          selector: buildSelector(document.activeElement) || msg.selector,
-          assertType: msg.assertType || 'visible',
-          expected: msg.expected || null,
-        });
-        sendResponse({ status: 'assertion_added' });
-        break;
+        record({ type: 'assert', selector: buildSelector(document.activeElement) || msg.selector,
+          assertType: msg.assertType || 'visible', expected: msg.expected || null });
+        sendResponse({ status: 'assertion_added' }); break;
       case 'addScreenshot':
         record({ type: 'screenshot', label: msg.label || '' });
-        sendResponse({ status: 'screenshot_added' });
-        break;
+        sendResponse({ status: 'screenshot_added' }); break;
     }
   });
 
@@ -497,8 +396,16 @@
   document.addEventListener('mouseover', onHover, true);
   patchHistory();
 
-  // Check if recording should be active on this page
-  initRecordingState();
+  // Wait for DOM, then check if recording should resume
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      domReady = true;
+      initRecordingState();
+    });
+  } else {
+    domReady = true;
+    initRecordingState();
+  }
 
   console.log('[Browser Recorder] Ready. Ctrl+Shift+R to toggle recording.');
 })();

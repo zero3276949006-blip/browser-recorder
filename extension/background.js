@@ -1,63 +1,37 @@
 /**
  * Browser Recorder - Background Service Worker
- * Handles recording lifecycle, event buffering across navigations, and downloads.
+ * Handles badge updates, event buffering, and download triggers.
+ * State is persisted in chrome.storage.session (survives SW restarts).
  */
 
-let activeRecording = null;  // { tabId, startUrl, events[] }
+const BR_KEY = 'br_events';
+const REC_KEY = 'br_recording';
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   switch (msg.type) {
     case 'RECORDING_STARTED':
-      activeRecording = {
-        tabId: sender.tab.id,
-        startUrl: msg.url,
-        events: []
-      };
-      chrome.action.setBadgeText({ text: '●', tabId: sender.tab.id });
+      chrome.action.setBadgeText({ text: '\u25CF', tabId: sender.tab.id });
       chrome.action.setBadgeBackgroundColor({ color: '#e74c3c', tabId: sender.tab.id });
-      sendResponse({ recording: true });
       break;
 
     case 'RECORDING_STOPPED':
-      if (activeRecording && activeRecording.tabId === sender.tab.id) {
-        activeRecording.events = msg.events || activeRecording.events;
-        downloadRecording({
-          title: documentTitle(msg.startUrl),
-          startUrl: activeRecording.startUrl,
-          recordedAt: new Date().toISOString(),
-          steps: activeRecording.events,
-        });
-        activeRecording = null;
-      }
       chrome.action.setBadgeText({ text: '', tabId: sender.tab.id });
-      sendResponse({ recording: false });
+      downloadRecording(msg.recording);
       break;
 
     case 'EVENT_RECORDED':
-      if (activeRecording && activeRecording.tabId === sender.tab.id) {
-        activeRecording.events.push(msg.event);
-      }
+      // Append event to session storage buffer
+      chrome.storage.session.get([BR_KEY], (data) => {
+        const buf = data[BR_KEY] || [];
+        buf.push(msg.event);
+        chrome.storage.session.set({ [BR_KEY]: buf });
+      });
       break;
 
     case 'EVENTS_SYNC':
-      // Content script is syncing its buffer before navigation
-      if (activeRecording && activeRecording.tabId === sender.tab.id && msg.events) {
-        activeRecording.events = msg.events;
-      }
+      // Replace entire buffer (used on beforeunload)
+      chrome.storage.session.set({ [BR_KEY]: msg.events });
       break;
-
-    case 'GET_RECORDING_STATUS':
-      // Content script checks on init whether recording is active for this tab
-      if (activeRecording && activeRecording.tabId === sender.tab.id) {
-        sendResponse({
-          recording: true,
-          startUrl: activeRecording.startUrl,
-          eventCount: activeRecording.events.length
-        });
-      } else {
-        sendResponse({ recording: false });
-      }
-      return true; // keep channel open for async sendResponse
   }
 });
 
@@ -66,20 +40,5 @@ function downloadRecording(recording) {
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-  const filename = `recording-${timestamp}.json`;
-
-  chrome.downloads.download({
-    url,
-    filename,
-    saveAs: true,
-  });
-}
-
-function documentTitle(url) {
-  try {
-    const u = new URL(url);
-    return u.hostname + u.pathname;
-  } catch {
-    return url || 'Untitled Recording';
-  }
+  chrome.downloads.download({ url, filename: `recording-${timestamp}.json`, saveAs: true });
 }
