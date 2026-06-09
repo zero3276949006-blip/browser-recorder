@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browser Recorder</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎬 Browser Recorder</h1>
+      <span id="status" class="status-idle">Idle</span>
+    </header>
+
+    <div class="controls">
+      <button id="btn-record" class="btn btn-primary">
+        <span class="icon">⏺</span> Start Recording
+      </button>
+      <button id="btn-stop" class="btn btn-danger" disabled>
+        <span class="icon">⏹</span> Stop & Export
+      </button>
+    </div>
+
+    <div id="step-count" class="step-count" style="display:none">
+      Steps recorded: <strong id="count">0</strong>
+    </div>
+
+    <div class="actions">
+      <button id="btn-assert-visible" class="btn btn-sm" disabled title="Assert selected element is visible">
+        👁 Assert Visible
+      </button>
+      <button id="btn-assert-text" class="btn btn-sm" disabled title="Assert selected element contains text">
+        📝 Assert Text
+      </button>
+      <button id="btn-screenshot" class="btn btn-sm" disabled title="Insert screenshot step">
+        📸 Screenshot
+      </button>
+    </div>
+
+    <div class="shortcuts">
+      <h3>Shortcuts</h3>
+      <ul>
+        <li><kbd>Ctrl+Shift+R</kbd> Toggle recording</li>
+        <li>Hover elements to see selector highlight</li>
+        <li>Use <kbd>Tab</kbd> / <kbd>Enter</kbd> to navigate forms</li>
+      </ul>
+    </div>
+
+    <footer>
+      <span class="version">v0.1.0</span>
+      <span>Exported recordings → <code>br generate</code></span>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

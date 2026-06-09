@@ -1,0 +1,48 @@
+{
+  "title": "GitHub Login Flow",
+  "startUrl": "https://github.com/login",
+  "recordedAt": "2026-06-10T05:20:00.000Z",
+  "steps": [
+    {
+      "type": "navigation",
+      "url": "https://github.com/login",
+      "title": "Sign in to GitHub",
+      "timestamp": 0
+    },
+    {
+      "type": "input",
+      "selector": "#login_field",
+      "value": "user@example.com",
+      "inputType": "text",
+      "tagName": "INPUT",
+      "timestamp": 800
+    },
+    {
+      "type": "input",
+      "selector": "#password",
+      "value": "password123",
+      "inputType": "password",
+      "tagName": "INPUT",
+      "timestamp": 1200
+    },
+    {
+      "type": "click",
+      "selector": "[name=\"commit\"]",
+      "text": "Sign in",
+      "tagName": "INPUT",
+      "timestamp": 600
+    },
+    {
+      "type": "assert",
+      "selector": ".Header",
+      "assertType": "visible",
+      "expected": null,
+      "timestamp": 2000
+    },
+    {
+      "type": "screenshot",
+      "label": "logged-in",
+      "timestamp": 300
+    }
+  ]
+}

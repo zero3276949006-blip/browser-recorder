@@ -1,0 +1,178 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-size: 13px;
+}
+
+.container {
+  padding: 16px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.status-idle {
+  font-size: 11px;
+  color: #888;
+  background: #2a2a3e;
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+.status-recording {
+  font-size: 11px;
+  color: #e74c3c;
+  background: #3e1a1a;
+  padding: 2px 10px;
+  border-radius: 10px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2ecc71;
+  color: #fff;
+}
+.btn-primary:not(:disabled):hover {
+  background: #27ae60;
+}
+
+.btn-danger {
+  background: #e74c3c;
+  color: #fff;
+}
+.btn-danger:not(:disabled):hover {
+  background: #c0392b;
+}
+
+.btn-sm {
+  flex: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  background: #2a2a3e;
+  color: #ccc;
+  border: 1px solid #3a3a5e;
+}
+.btn-sm:not(:disabled):hover {
+  background: #3a3a5e;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.step-count {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #888;
+}
+.step-count strong {
+  color: #3498db;
+}
+
+.shortcuts {
+  border-top: 1px solid #2a2a3e;
+  padding-top: 12px;
+  margin-bottom: 12px;
+}
+
+.shortcuts h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.shortcuts ul {
+  list-style: none;
+}
+
+.shortcuts li {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+kbd {
+  background: #2a2a3e;
+  border: 1px solid #3a3a5e;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-family: monospace;
+  color: #ccc;
+}
+
+footer {
+  border-top: 1px solid #2a2a3e;
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #555;
+}
+
+footer code {
+  background: #2a2a3e;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+.version {
+  color: #444;
+}
+
+.icon {
+  font-size: 14px;
+}

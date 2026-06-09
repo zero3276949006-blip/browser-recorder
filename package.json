@@ -1,0 +1,13 @@
+{
+  "name": "browser-recorder",
+  "version": "0.1.0",
+  "description": "Record browser actions and generate maintainable Playwright scripts",
+  "private": true,
+  "workspaces": ["cli"],
+  "scripts": {
+    "build": "npm run build -w cli",
+    "generate-icons": "node scripts/generate-icons.js"
+  },
+  "keywords": ["playwright", "browser", "recording", "testing", "automation"],
+  "license": "MIT"
+}
