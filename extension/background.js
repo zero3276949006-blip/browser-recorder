@@ -1,26 +1,63 @@
 /**
  * Browser Recorder - Background Service Worker
- * Handles recording lifecycle and downloads.
+ * Handles recording lifecycle, event buffering across navigations, and downloads.
  */
-let activeRecording = null;
 
-chrome.runtime.onMessage.addListener((msg, sender) => {
+let activeRecording = null;  // { tabId, startUrl, events[] }
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   switch (msg.type) {
     case 'RECORDING_STARTED':
-      activeRecording = { tabId: sender.tab.id, url: msg.url };
+      activeRecording = {
+        tabId: sender.tab.id,
+        startUrl: msg.url,
+        events: []
+      };
       chrome.action.setBadgeText({ text: '●', tabId: sender.tab.id });
       chrome.action.setBadgeBackgroundColor({ color: '#e74c3c', tabId: sender.tab.id });
+      sendResponse({ recording: true });
       break;
 
     case 'RECORDING_STOPPED':
-      activeRecording = null;
+      if (activeRecording && activeRecording.tabId === sender.tab.id) {
+        activeRecording.events = msg.events || activeRecording.events;
+        downloadRecording({
+          title: documentTitle(msg.startUrl),
+          startUrl: activeRecording.startUrl,
+          recordedAt: new Date().toISOString(),
+          steps: activeRecording.events,
+        });
+        activeRecording = null;
+      }
       chrome.action.setBadgeText({ text: '', tabId: sender.tab.id });
-      downloadRecording(msg.recording);
+      sendResponse({ recording: false });
       break;
 
     case 'EVENT_RECORDED':
-      // Could update step count badge here
+      if (activeRecording && activeRecording.tabId === sender.tab.id) {
+        activeRecording.events.push(msg.event);
+      }
       break;
+
+    case 'EVENTS_SYNC':
+      // Content script is syncing its buffer before navigation
+      if (activeRecording && activeRecording.tabId === sender.tab.id && msg.events) {
+        activeRecording.events = msg.events;
+      }
+      break;
+
+    case 'GET_RECORDING_STATUS':
+      // Content script checks on init whether recording is active for this tab
+      if (activeRecording && activeRecording.tabId === sender.tab.id) {
+        sendResponse({
+          recording: true,
+          startUrl: activeRecording.startUrl,
+          eventCount: activeRecording.events.length
+        });
+      } else {
+        sendResponse({ recording: false });
+      }
+      return true; // keep channel open for async sendResponse
   }
 });
 
@@ -36,4 +73,13 @@ function downloadRecording(recording) {
     filename,
     saveAs: true,
   });
+}
+
+function documentTitle(url) {
+  try {
+    const u = new URL(url);
+    return u.hostname + u.pathname;
+  } catch {
+    return url || 'Untitled Recording';
+  }
 }

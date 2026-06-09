@@ -1,7 +1,7 @@
 /**
  * Browser Recorder - Content Script
  * Injects into every page to capture user interactions.
- * Uses Manifest V3 isolated world.
+ * Recording state persists across navigations via background service worker.
  */
 (function () {
   'use strict';
@@ -157,7 +157,6 @@
       parts.unshift(`${tag}:nth-of-type(${idx})`);
       current = parent;
 
-      // Stop early if ancestor is uniquely identifiable
       if (current.closest && current.id) {
         parts.unshift(`#${CSS.escape(current.id)}`);
         break;
@@ -185,6 +184,7 @@
     lastEventTime = Date.now();
     event.url = location.href;
     events.push(event);
+    // Send to background for persistence across navigations
     chrome.runtime.sendMessage({ type: 'EVENT_RECORDED', event });
   }
 
@@ -277,7 +277,6 @@
       const el = e.target;
       if (!el || el.closest('#br-overlay')) return;
       const sel = buildSelector(el);
-      // Only record hover if it reveals something (dropdown, tooltip)
       const isMenuTrigger =
         el.getAttribute('aria-haspopup') ||
         el.getAttribute('aria-expanded') ||
@@ -289,14 +288,14 @@
 
   // ── Navigation Detection ────────────────────────────────
 
-  function onPageShow() {
+  // Sync events to background before page unloads
+  window.addEventListener('beforeunload', () => {
     if (!recording) return;
-    // Check if URL actually changed
-    if (location.href !== startUrl) {
-      startUrl = location.href;
-      record({ type: 'navigation', url: location.href, title: document.title });
-    }
-  }
+    // Synchronously send all events to background
+    try {
+      chrome.runtime.sendMessage({ type: 'EVENTS_SYNC', events });
+    } catch (_) {}
+  });
 
   // Patch pushState/replaceState for SPA navigation
   function patchHistory() {
@@ -305,17 +304,23 @@
     history.pushState = function (...args) {
       origPush.apply(this, args);
       if (recording && location.href !== startUrl) {
-        startUrl = location.href;
-        record({ type: 'navigation', url: location.href, title: document.title });
+        onNavigate();
       }
     };
     history.replaceState = function (...args) {
       origReplace.apply(this, args);
       if (recording && location.href !== startUrl) {
-        startUrl = location.href;
-        record({ type: 'navigation', url: location.href, title: document.title });
+        onNavigate();
       }
     };
+  }
+
+  function onNavigate() {
+    if (!recording) return;
+    if (location.href !== startUrl) {
+      startUrl = location.href;
+      record({ type: 'navigation', url: location.href, title: document.title });
+    }
   }
 
   // ── Recording Control ───────────────────────────────────
@@ -348,7 +353,7 @@
       steps: events,
     };
     chrome.runtime.sendMessage(
-      { type: 'RECORDING_STOPPED', recording: recordingData }
+      { type: 'RECORDING_STOPPED', recording: recordingData, events }
     );
     events = [];
   }
@@ -429,6 +434,28 @@
     h.style.height = rect.height + 'px';
   }
 
+  // ── Cross-Page Recording Resume ─────────────────────────
+
+  /**
+   * On content script init, check with background if we should be recording.
+   * This is the key fix: after navigation to a new page, the content script
+   * restores recording state from the background service worker.
+   */
+  function initRecordingState() {
+    chrome.runtime.sendMessage({ type: 'GET_RECORDING_STATUS' }, (response) => {
+      if (chrome.runtime.lastError) return;
+      if (response && response.recording) {
+        // Resume recording on this new page
+        recording = true;
+        startUrl = location.href;
+        lastEventTime = Date.now();
+        events = [];
+        record({ type: 'navigation', url: location.href, title: document.title });
+        showIndicator();
+      }
+    });
+  }
+
   // ── Message Handling ────────────────────────────────────
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -468,8 +495,10 @@
   document.addEventListener('change', onChange, true);
   document.addEventListener('keydown', onKeyDown, true);
   document.addEventListener('mouseover', onHover, true);
-  window.addEventListener('pageshow', onPageShow);
   patchHistory();
+
+  // Check if recording should be active on this page
+  initRecordingState();
 
   console.log('[Browser Recorder] Ready. Ctrl+Shift+R to toggle recording.');
 })();
