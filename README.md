@@ -1,4 +1,4 @@
-﻿# 馃幀 Browser Recorder
+# 🚀 Browser Recorder
 
 **Record browser actions. Generate clean Playwright scripts. No flaky selectors.**
 
@@ -12,20 +12,20 @@
 
 A two-part toolchain:
 
-1. **Browser Extension** 鈥?records your clicks, inputs, and navigations with intelligent selectors
-2. **CLI (`br`)** 鈥?converts recordings into production-ready Playwright test scripts
+1. **Browser Extension** — records your clicks, inputs, and navigations with intelligent selectors
+2. **CLI (`br`)** — converts recordings into production-ready Playwright test scripts
 
-Unlike other recorders, Browser Recorder generates **resilient, readable code** 鈥?not fragile XPath chains. It prioritizes `data-testid`, `aria-label`, semantic roles, and text content over brittle DOM paths.
+Unlike other recorders, Browser Recorder generates **resilient, readable code** — not fragile XPath chains. It prioritizes `data-testid`, `aria-label`, semantic roles, and text content over brittle DOM paths.
 
 ---
 
 ## Demo (30 seconds)
 
 ```
-馃幀 Record:  Ctrl+Shift+R 鈫?click around 鈫?Ctrl+Shift+R again
-馃摜 Export:   recording-2026-06-10.json downloaded automatically
-鈿?Generate: br generate recording-2026-06-10.json
-鉁?Result:   tests/github-login.spec.ts
+🎬 Record:  Ctrl+Shift+R → click around → Ctrl+Shift+R again
+💾 Export:   recording-2026-06-10.json downloaded automatically
+✏️ Generate: br generate recording-2026-06-10.json
+✅ Result:   tests/github-login.spec.ts
 ```
 
 **Input** (what you recorded):
@@ -57,7 +57,7 @@ test('GitHub Login Flow', async ({ page }) => {
 
 ## Features
 
-### 馃 Smart Selector Engine (10-priority fallback chain)
+### 🧠 Smart Selector Engine (10-priority fallback chain)
 
 | Priority | Strategy | Example |
 |----------|----------|---------|
@@ -74,22 +74,22 @@ test('GitHub Login Flow', async ({ page }) => {
 
 Every selector is verified with `document.querySelectorAll()` to ensure **uniqueness at record time**.
 
-### 馃摝 Smart Script Generation
+### 🧩 Smart Script Generation
 
-- **Variable extraction** 鈥?repeated values (emails, URLs) become named constants
-- **Smart waits** 鈥?inserts `waitForTimeout` only when there's a real time gap
-- **Deduplicated navigations** 鈥?consecutive navigations to the same URL are merged
-- **Password safety** 鈥?password field values are never inlined in comments
-- **Keyboard support** 鈥?`Tab`, `Enter`, `Escape`, arrow keys mapped to Playwright API
+- **Variable extraction** — repeated values (emails, URLs) become named constants
+- **Smart waits** — inserts `waitForTimeout` only when there's a real time gap
+- **Deduplicated navigations** — consecutive navigations to the same URL are merged
+- **Password safety** — password field values are never inlined in comments
+- **Keyboard support** — `Tab`, `Enter`, `Escape`, arrow keys mapped to Playwright API
 
-### 馃幆 Recording Features
+### 🏷️ Recording Features
 
-- **SPA-aware** 鈥?patches `history.pushState` / `replaceState` for single-page apps
-- **Element highlight** 鈥?blue overlay on hover shows what's being captured
-- **Recording badge** 鈥?red pulsing indicator with step count
-- **Inline assertions** 鈥?add visibility/text checks while recording
-- **Screenshot steps** 鈥?insert `page.screenshot()` at any point
-- **Keyboard shortcut** 鈥?`Ctrl+Shift+R` toggles recording (works inside any page)
+- **SPA-aware** — patches `history.pushState` / `replaceState` for single-page apps
+- **Element highlight** — blue overlay on hover shows what's being captured
+- **Recording badge** — red pulsing indicator with step count
+- **Inline assertions** — add visibility/text checks while recording
+- **Screenshot steps** — insert `page.screenshot()` at any point
+- **Keyboard shortcut** — `Ctrl+Shift+R` toggles recording (works inside any page)
 
 ---
 
@@ -97,18 +97,18 @@ Every selector is verified with `document.querySelectorAll()` to ensure **unique
 
 ### 1. Browser Extension
 
-```bash
-# Chrome / Edge / Brave / Arc / QQ Browser
+```
+Chrome / Edge / Brave / Arc / QQ Browser
 1. Open chrome://extensions
 2. Enable "Developer mode"
 3. Click "Load unpacked"
-4. Select the `extension/` directory
+4. Select the extension/ directory
 ```
 
 ### 2. CLI
 
 ```bash
-git clone https://github.com/lain/browser-recorder.git
+git clone https://github.com/zero3276949006-blip/browser-recorder.git
 cd browser-recorder
 cd cli && npm install && npm run build
 npm link  # Makes `br` globally available
@@ -126,7 +126,7 @@ npx browser-recorder generate recording.json
 
 ### Record
 
-1. Click the extension icon 鈫?**Start Recording** (or press `Ctrl+Shift+R`)
+1. Click the extension icon → **Start Recording** (or press `Ctrl+Shift+R`)
 2. Interact with the page normally
 3. Click **Stop & Export** (or press `Ctrl+Shift+R` again)
 4. A JSON file downloads automatically
@@ -169,44 +169,44 @@ br init
 
 ```
 browser-recorder/
-鈹溾攢鈹€ extension/              # Chrome Extension (Manifest V3)
-鈹?  鈹溾攢鈹€ content.js           #   Injected recorder 鈥?event capture + selector engine
-鈹?  鈹溾攢鈹€ popup.html/js/css    #   Extension popup UI
-鈹?  鈹溾攢鈹€ background.js        #   Service worker 鈥?download + badge management
-鈹?  鈹斺攢鈹€ manifest.json        #   Extension manifest
-鈹?鈹溾攢鈹€ cli/                     # CLI Tool (TypeScript)
-鈹?  鈹斺攢鈹€ src/
-鈹?      鈹溾攢鈹€ index.ts          #   Commander CLI entry 鈥?generate, list, info, init
-鈹?      鈹溾攢鈹€ generator.ts      #   Recording 鈫?Playwright code transformation
-鈹?      鈹斺攢鈹€ types.ts          #   TypeScript interfaces for recordings
-鈹?鈹溾攢鈹€ examples/                # Sample recordings
-鈹?  鈹斺攢鈹€ github-login.json    #   Example: GitHub login flow
-鈹?鈹斺攢鈹€ scripts/
-    鈹斺攢鈹€ generate-icons.js     #   Generate extension icons
+├── extension/              # Chrome Extension (Manifest V3)
+│   ├── content.js           #   Injected recorder — event capture + selector engine
+│   ├── popup.html/js/css    #   Extension popup UI
+│   ├── background.js        #   Service worker — download + badge management
+│   └── manifest.json        #   Extension manifest
+├── cli/                     # CLI Tool (TypeScript)
+│   └── src/
+│       ├── index.ts          #   Commander CLI entry — generate, list, info, init
+│       ├── generator.ts      #   Recording → Playwright code transformation
+│       └── types.ts          #   TypeScript interfaces for recordings
+├── examples/                # Sample recordings
+│   └── github-login.json    #   Example: GitHub login flow
+└── scripts/
+    └── generate-icons.js     #   Generate extension icons
 ```
 
 ### Data Flow
 
 ```
-User Actions 鈫?content.js (capture + build selectors)
-     鈫?background.js (collect, assemble Recording JSON)
-     鈫?Download as .json
-     鈫?CLI: index.ts (parse)
-     鈫?CLI: generator.ts (transform)
-     鈫?.spec.ts (Playwright test)
+User Actions → content.js (capture + build selectors)
+     → background.js (collect, assemble Recording JSON)
+     → Download as .json
+     → CLI: index.ts (parse)
+     → CLI: generator.ts (transform)
+     → .spec.ts (Playwright test)
 ```
 
 ### Selector Decision Tree
 
 ```
-Can we use data-testid?      鈫?Yes 鈫?[data-testid="xxx"]          (Priority 1)
-Can we use unique id?        鈫?Yes 鈫?#id                          (Priority 2)
-Can we use aria-label?       鈫?Yes 鈫?[aria-label="xxx"]           (Priority 3)
-Does it have a name attr?    鈫?Yes 鈫?[name="xxx"]                 (Priority 4)
-Does it have role + name?    鈫?Yes 鈫?role=button[name="xxx"]      (Priority 5)
-Is it a button/link w/ text? 鈫?Yes 鈫?button:has-text("xxx")       (Priority 7)
-Has unique class combo?      鈫?Yes 鈫?.parent .child               (Priority 9)
-Fallback                     鈫?CSS nth-of-type path                (Priority 10)
+Can we use data-testid?      → Yes → [data-testid="xxx"]          (Priority 1)
+Can we use unique id?        → Yes → #id                           (Priority 2)
+Can we use aria-label?       → Yes → [aria-label="xxx"]            (Priority 3)
+Does it have a name attr?    → Yes → [name="xxx"]                  (Priority 4)
+Does it have role + name?    → Yes → role=button[name="xxx"]       (Priority 5)
+Is it a button/link w/ text? → Yes → button:has-text("xxx")        (Priority 7)
+Has unique class combo?      → Yes → .parent .child                (Priority 9)
+Fallback                     → CSS nth-of-type path                (Priority 10)
 ```
 
 ---
@@ -218,7 +218,7 @@ Existing record-and-replay tools generate:
 - Unreadable code you'd never commit
 - No awareness of testing best practices
 
-Browser Recorder generates code **you'd write yourself** 鈥?with semantic selectors, assertion patterns, and variable extraction.
+Browser Recorder generates code **you'd write yourself** — with semantic selectors, assertion patterns, and variable extraction.
 
 ---
 
@@ -236,13 +236,13 @@ Browser Recorder generates code **you'd write yourself** 鈥?with semantic selec
 
 ## Roadmap
 
-- [ ] **Replay mode** 鈥?play recordings back in the browser for visual verification
-- [ ] **Step editor** 鈥?modify, reorder, and delete steps before export
-- [ ] **Puppeteer output** 鈥?alternative target for Playwright-less projects
-- [ ] **CI integration** 鈥?`br generate --ci` outputs GitHub Actions / GitLab CI config
-- [ ] **Shadow DOM support** 鈥?improved selector traversal for web components
-- [ ] **Video recording** 鈥?capture screen during recording for documentation
-- [ ] **Diff mode** 鈥?compare two recordings to detect UI changes
+- [ ] **Replay mode** — play recordings back in the browser for visual verification
+- [ ] **Step editor** — modify, reorder, and delete steps before export
+- [ ] **Puppeteer output** — alternative target for Playwright-less projects
+- [ ] **CI integration** — `br generate --ci` outputs GitHub Actions / GitLab CI config
+- [ ] **Shadow DOM support** — improved selector traversal for web components
+- [ ] **Video recording** — capture screen during recording for documentation
+- [ ] **Diff mode** — compare two recordings to detect UI changes
 
 ---
 
@@ -250,14 +250,14 @@ Browser Recorder generates code **you'd write yourself** 鈥?with semantic selec
 
 Contributions welcome! Areas that could use help:
 
-- **Selector engine improvements** 鈥?edge cases, shadow DOM, iframe support
-- **Test frameworks** 鈥?Cypress, WebdriverIO output formats
-- **Recorder UI** 鈥?step editor, inline value editing
-- **Documentation** 鈥?tutorials, video demos
+- **Selector engine improvements** — edge cases, shadow DOM, iframe support
+- **Test frameworks** — Cypress, WebdriverIO output formats
+- **Recorder UI** — step editor, inline value editing
+- **Documentation** — tutorials, video demos
 
 ```bash
 # Development setup
-git clone https://github.com/lain/browser-recorder.git
+git clone https://github.com/zero3276949006-blip/browser-recorder.git
 cd browser-recorder
 
 # Extension: load unpacked from extension/ in chrome://extensions
@@ -272,4 +272,4 @@ npm run dev  # Watch mode
 
 ## License
 
-MIT 漏 2026
+MIT © 2026
