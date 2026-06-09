@@ -1,55 +1,116 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Browser Recorder</title>
+  <title>浏览器录制器</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>🎬 Browser Recorder</h1>
-      <span id="status" class="status-idle">Idle</span>
+      <h1>🎬 浏览器录制器</h1>
+      <span id="status" class="status-idle">空闲</span>
     </header>
 
-    <div class="controls">
-      <button id="btn-record" class="btn btn-primary">
-        <span class="icon">⏺</span> Start Recording
-      </button>
-      <button id="btn-stop" class="btn btn-danger" disabled>
-        <span class="icon">⏹</span> Stop & Export
-      </button>
-    </div>
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="record">⏺ 录制</button>
+      <button class="tab-btn" data-tab="playback">▶ 回放</button>
+      <button class="tab-btn" data-tab="scripts">📂 脚本</button>
+    </nav>
 
-    <div id="step-count" class="step-count" style="display:none">
-      Steps recorded: <strong id="count">0</strong>
-    </div>
+    <!-- ── Record Tab ──────────────────────────────────── -->
+    <section id="tab-record" class="tab-content active">
+      <div class="controls">
+        <button id="btn-record" class="btn btn-primary">
+          <span class="icon">⏺</span> 开始录制
+        </button>
+        <button id="btn-stop" class="btn btn-danger" disabled>
+          <span class="icon">⏹</span> 停止导出
+        </button>
+      </div>
 
-    <div class="actions">
-      <button id="btn-assert-visible" class="btn btn-sm" disabled title="Assert selected element is visible">
-        👁 Assert Visible
-      </button>
-      <button id="btn-assert-text" class="btn btn-sm" disabled title="Assert selected element contains text">
-        📝 Assert Text
-      </button>
-      <button id="btn-screenshot" class="btn btn-sm" disabled title="Insert screenshot step">
-        📸 Screenshot
-      </button>
-    </div>
+      <div id="step-count" class="step-count" style="display:none">
+        已录制步骤：<strong id="count">0</strong>
+      </div>
 
-    <div class="shortcuts">
-      <h3>Shortcuts</h3>
-      <ul>
-        <li><kbd>Ctrl+Shift+R</kbd> Toggle recording</li>
-        <li>Hover elements to see selector highlight</li>
-        <li>Use <kbd>Tab</kbd> / <kbd>Enter</kbd> to navigate forms</li>
-      </ul>
-    </div>
+      <div class="actions">
+        <button id="btn-assert-visible" class="btn btn-sm" disabled title="断言选中的元素可见">
+          👁 可见断言
+        </button>
+        <button id="btn-assert-text" class="btn btn-sm" disabled title="断言选中元素的文本">
+          📝 文本断言
+        </button>
+        <button id="btn-screenshot" class="btn btn-sm" disabled title="插入截图步骤">
+          📸 截图
+        </button>
+      </div>
+
+      <div class="shortcuts">
+        <h3>快捷键</h3>
+        <ul>
+          <li><kbd>Ctrl+Shift+R</kbd> 开始/停止录制</li>
+          <li>鼠标悬停元素显示选择器高亮</li>
+          <li>用 <kbd>Tab</kbd> / <kbd>Enter</kbd> 导航表单</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ── Playback Tab ────────────────────────────────── -->
+    <section id="tab-playback" class="tab-content">
+      <div class="playback-load">
+        <button id="btn-load-recording" class="btn btn-primary" style="width:100%">
+          📁 加载录制文件
+        </button>
+        <input type="file" id="file-input" accept=".json" style="display:none">
+      </div>
+
+      <div id="playback-info" style="display:none">
+        <div class="playback-meta">
+          <span id="playback-title">—</span>
+          <span id="playback-steps">0 步</span>
+        </div>
+        <div class="playback-controls">
+          <button id="btn-play" class="btn btn-primary">▶ 播放</button>
+          <button id="btn-pause" class="btn btn-warning" disabled>⏸ 暂停</button>
+          <button id="btn-step" class="btn btn-sm">⏭ 单步</button>
+          <button id="btn-reset-playback" class="btn btn-sm">↺ 重置</button>
+        </div>
+        <div class="playback-speed">
+          <label>速度：</label>
+          <select id="playback-speed">
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="2">2x</option>
+            <option value="4">4x</option>
+          </select>
+        </div>
+        <div id="playback-progress" class="progress-bar" style="display:none">
+          <div class="progress-fill"></div>
+        </div>
+        <div id="playback-current" class="playback-current" style="display:none">
+          正在执行：<span id="current-step-desc"></span>
+        </div>
+        <ol id="step-list" class="step-list"></ol>
+      </div>
+    </section>
+
+    <!-- ── Scripts Tab ─────────────────────────────────── -->
+    <section id="tab-scripts" class="tab-content">
+      <div class="scripts-header">
+        <span id="scripts-count">共 0 个脚本</span>
+        <button id="btn-import-script" class="btn btn-sm">📥 导入</button>
+      </div>
+      <input type="file" id="script-file-input" accept=".json" style="display:none" multiple>
+      <div id="script-list" class="script-list">
+        <div class="empty-state">暂无脚本</div>
+      </div>
+    </section>
 
     <footer>
       <span class="version">v0.1.0</span>
-      <span>Exported recordings → <code>br generate</code></span>
+      <span>导出 → <code>br generate</code></span>
     </footer>
   </div>
   <script src="popup.js"></script>

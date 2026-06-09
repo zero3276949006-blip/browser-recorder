@@ -215,14 +215,9 @@
 
   window.addEventListener('beforeunload', () => {
     if (!recording) return;
-    // Sync entire events buffer to storage (synchronous fallback via background)
     try { chrome.runtime.sendMessage({ type: 'EVENTS_SYNC', events }); } catch (_) {}
-    // Also write directly to storage as a reliable backup
     try {
-      chrome.storage.session.set({
-        br_events: events,
-        br_updatedAt: Date.now()
-      });
+      chrome.storage.session.set({ br_events: events, br_updatedAt: Date.now() });
     } catch (_) {}
   });
 
@@ -255,7 +250,6 @@
     startUrl = location.href;
     lastEventTime = Date.now();
     recording = true;
-    // Persist recording state to session storage
     chrome.storage.session.set({
       br_recording: true,
       br_tabId: getTabId(),
@@ -270,7 +264,6 @@
   function stopRecording() {
     recording = false;
     hideIndicator();
-    // Load events from storage (includes events from previous pages)
     chrome.storage.session.get(['br_events', 'br_startUrl'], (data) => {
       const allEvents = data.br_events || events;
       const fullStartUrl = data.br_startUrl || startUrl;
@@ -281,7 +274,6 @@
         steps: allEvents,
       };
       chrome.runtime.sendMessage({ type: 'RECORDING_STOPPED', recording: recordingData });
-      // Clean up storage
       chrome.storage.session.remove(['br_recording', 'br_tabId', 'br_events', 'br_startUrl', 'br_updatedAt']);
     });
     events = [];
@@ -291,23 +283,21 @@
 
   function showIndicator() {
     if (document.getElementById('br-overlay')) return;
-    if (!domReady || !document.body) {
-      // DOM not ready yet, retry on DOMContentLoaded
-      return;
-    }
+    if (!domReady || !document.body) return;
+
     const overlay = document.createElement('div');
     overlay.id = 'br-overlay';
-    overlay.innerHTML = `
-      <style>
-        #br-overlay{position:fixed;top:0;left:0;right:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;pointer-events:none;height:0}
-        #br-overlay .br-badge{background:#e74c3c;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:4px 14px;border-radius:0 0 8px 8px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);animation:br-pulse 1.5s ease-in-out infinite}
-        #br-overlay .br-dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:br-blink 1s step-end infinite}
-        @keyframes br-pulse{0%,100%{opacity:1}50%{opacity:.85}}
-        @keyframes br-blink{0%,100%{opacity:1}50%{opacity:.2}}
-        #br-highlight{position:fixed;pointer-events:none;z-index:2147483646;border:2px solid #3498db;border-radius:3px;background:rgba(52,152,219,.08);transition:all .15s ease}
-      </style>
-      <div class="br-badge"><span class="br-dot"></span> Recording — Ctrl+Shift+R to stop</div>
-    `;
+    overlay.innerHTML = [
+      '<style>',
+      '#br-overlay{position:fixed;top:0;left:0;right:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;pointer-events:none;height:0}',
+      '#br-overlay .br-badge{background:#e74c3c;color:#fff;font:12px/1.4 system-ui,sans-serif;padding:4px 14px;border-radius:0 0 8px 8px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);animation:br-pulse 1.5s ease-in-out infinite}',
+      '#br-overlay .br-dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:br-blink 1s step-end infinite}',
+      '@keyframes br-pulse{0%,100%{opacity:1}50%{opacity:.85}}',
+      '@keyframes br-blink{0%,100%{opacity:1}50%{opacity:.2}}',
+      '#br-highlight{position:fixed;pointer-events:none;z-index:2147483646;border:2px solid #3498db;border-radius:3px;background:rgba(52,152,219,.08);transition:all .15s ease}',
+      '</style>',
+      '<div class="br-badge"><span class="br-dot"></span> \u5f55\u5236\u4e2d \u2014 Ctrl+Shift+R \u505c\u6b62</div>'
+    ].join('');
     document.body.appendChild(overlay);
 
     const highlight = document.createElement('div');
@@ -343,31 +333,19 @@
 
   // ── Cross-Page Recording Resume ─────────────────────────
 
-  /**
-   * On content script init, check chrome.storage.session for active recording.
-   * This survives both page navigations AND Service Worker restarts.
-   */
   function initRecordingState() {
     chrome.storage.session.get(['br_recording', 'br_events', 'br_startUrl'], (data) => {
       if (!data.br_recording) return;
-
       recording = true;
       events = data.br_events || [];
       startUrl = data.br_startUrl || location.href;
       lastEventTime = Date.now();
-
-      // Record navigation to the new page
       record({ type: 'navigation', url: location.href, title: document.title });
-
-      // Show the overlay (wait for DOM if needed)
       showIndicator();
     });
   }
 
-  function getTabId() {
-    // content scripts can't access chrome.tabs, but we store what we can
-    return null;
-  }
+  function getTabId() { return null; }
 
   // ── Message Handling ────────────────────────────────────
 
@@ -383,8 +361,136 @@
       case 'addScreenshot':
         record({ type: 'screenshot', label: msg.label || '' });
         sendResponse({ status: 'screenshot_added' }); break;
+      case 'playback:execute':
+        executePlaybackStep(msg.step, msg.index).then(() => sendResponse({ ok: true }));
+        return true;
     }
   });
+
+  // ── Playback Executor ────────────────────────────────────
+
+  async function executePlaybackStep(step, index) {
+    if (!step || !step.type) return;
+    playbackHighlight(step, index);
+
+    const delay = Math.max(100, Math.min(step.timestamp || 300, 5000));
+    await sleep(delay);
+
+    try {
+      switch (step.type) {
+        case 'click': {
+          if (step.selector) {
+            const el = document.querySelector(step.selector);
+            if (el) el.click();
+          }
+          break;
+        }
+        case 'dblclick': {
+          if (step.selector) {
+            const el = document.querySelector(step.selector);
+            if (el) el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+          }
+          break;
+        }
+        case 'input':
+        case 'select': {
+          if (step.selector) {
+            const el = document.querySelector(step.selector);
+            if (el) {
+              el.focus();
+              el.value = step.value || '';
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+          break;
+        }
+        case 'navigation': {
+          if (step.url) {
+            window.location.href = step.url;
+            return;
+          }
+          break;
+        }
+        case 'keydown': {
+          if (step.key) {
+            const el = step.selector ? document.querySelector(step.selector) : document.activeElement;
+            if (el) {
+              el.dispatchEvent(new KeyboardEvent('keydown', { key: step.key, bubbles: true }));
+              el.dispatchEvent(new KeyboardEvent('keyup', { key: step.key, bubbles: true }));
+            }
+          }
+          break;
+        }
+        case 'check': {
+          if (step.selector) {
+            const el = document.querySelector(step.selector);
+            if (el && (el.type === 'checkbox' || el.type === 'radio')) {
+              el.checked = step.checked;
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+          break;
+        }
+        case 'hover': {
+          if (step.selector) {
+            const el = document.querySelector(step.selector);
+            if (el) {
+              el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+              el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+            }
+          }
+          break;
+        }
+        case 'assert': {
+          if (step.selector) {
+            const el = document.querySelector(step.selector);
+            if (el) {
+              const orig = el.style.outline;
+              el.style.outline = '3px solid #2ecc71';
+              setTimeout(() => { el.style.outline = orig; }, 800);
+            }
+          }
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn('[Playback] Step error:', index, err);
+    }
+    setTimeout(clearPlaybackHighlight, 500);
+  }
+
+  function playbackHighlight(step, index) {
+    clearPlaybackHighlight();
+    if (!step.selector) return;
+    try {
+      const el = document.querySelector(step.selector);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const hl = document.createElement('div');
+      hl.id = 'br-playback-highlight';
+      hl.innerHTML = [
+        '<style>',
+        '#br-playback-highlight{position:fixed;pointer-events:none;z-index:2147483645;',
+        'border:2px solid #f39c12;border-radius:3px;background:rgba(243,156,18,.1);',
+        `top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px}`,
+        '#br-playback-highlight .br-playback-label{position:absolute;top:-20px;left:0;',
+        'background:#f39c12;color:#000;font:11px system-ui;padding:1px 6px;border-radius:3px;white-space:nowrap}',
+        '</style>',
+        `<div class="br-playback-label">\u6b65\u9aa4 ${index + 1}: ${step.type}</div>`
+      ].join('');
+      document.body.appendChild(hl);
+    } catch (_) {}
+  }
+
+  function clearPlaybackHighlight() {
+    const hl = document.getElementById('br-playback-highlight');
+    if (hl) hl.remove();
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 
   // ── Initialize ──────────────────────────────────────────
 
@@ -396,7 +502,6 @@
   document.addEventListener('mouseover', onHover, true);
   patchHistory();
 
-  // Wait for DOM, then check if recording should resume
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       domReady = true;
